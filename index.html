@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Prepare aggregate campus data for Beaumont ISD secondary improvement planning.">
+  <title>Beaumont ISD Secondary CIP Builder</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="js/data.js" defer></script>
+  <script src="js/generator.js" defer></script>
+  <script src="js/app.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-content">
+      <p class="district-name">Beaumont ISD</p>
+      <span id="plan-edition" class="edition">2026–27 · Secondary</span>
+    </div>
+  </header>
+  <main class="container">
+    <div class="page-intro">
+      <p class="eyebrow">Campus improvement planning</p>
+      <h1>Beaumont ISD Secondary CIP Builder</h1>
+      <p class="intro">Support 2026-27 Secondary Campus Improvement Planning with district-aligned targets and campus baselines for Plan4Learning-ready output.</p>
+      <p class="privacy-note">Use aggregate campus data only. Do not enter student-level or personally identifiable information. Your entries stay in this tab and clear when you refresh.</p>
+      <p id="target-status-notice" class="target-status-note">2026-27 Secondary targets are district-controlled planning benchmarks and remain subject to BISD validation.</p>
+    </div>
+    <noscript><p class="notice">Enable JavaScript in your browser to use this form.</p></noscript>
+    <p id="loading-message" class="notice">Loading the campus form. If it does not appear, check that the JavaScript files are available.</p>
+    <form id="cip-form" novalidate autocomplete="off" hidden>
+      <nav aria-label="Form progress" class="progress-nav">
+        <ol id="progress-steps" class="steps"></ol>
+      </nav>
+      <div class="form-card">
+        <p id="step-status" class="eyebrow" role="status">Step 1 of 8 · Campus Information</p>
+        <section class="form-step" data-step="campus" aria-labelledby="campus-heading">
+          <h2 id="campus-heading" tabindex="-1">Campus Information</h2>
+          <p class="section-intro">Choose one campus. Its ID and profile come from district configuration. Changing campuses clears entered baselines.</p>
+          <p class="notice" id="campus-config-notice">Provisional Secondary campus list from the supplied district workbook; final eligibility remains subject to BISD validation.</p>
+          <div class="field">
+            <label for="campus_name">Secondary campus <span class="required-label">Required</span></label>
+            <select id="campus_name" name="campus_name" required aria-describedby="campus-config-notice campus_name-error">
+              <option value="">Select a secondary campus</option>
+            </select>
+            <p id="campus_name-error" class="field-error" hidden></p>
+            <p id="campus-id-status" class="field-help" role="status">Campus ID: <strong id="campus-id-value">Select a campus first</strong></p>
+          </div>
+        </section>
+        <section class="form-step" data-step="demographics" aria-labelledby="demographics-heading" hidden>
+          <h2 id="demographics-heading" tabindex="-1">Demographics</h2>
+          <p class="section-intro">Enter current aggregate campus measures. Percentages use a 0–100 scale. Targets are supplied by the district.</p>
+          <div id="demographics-fields" class="field-grid"></div>
+        </section>
+        <section class="form-step" data-step="academic" aria-labelledby="academic-heading" hidden>
+          <h2 id="academic-heading" tabindex="-1">Academic / Accountability</h2>
+          <p class="section-intro">Copy the official reported accountability results. Enter Reading and Mathematics baselines only; the district sets their targets.</p>
+          <div id="academic-fields" class="field-grid"></div>
+        </section>
+        <section class="form-step" data-step="readiness" aria-labelledby="readiness-heading" hidden>
+          <h2 id="readiness-heading" tabindex="-1">Student Readiness / Pathways</h2>
+          <p class="section-intro">Enter aggregate readiness and pathway baselines for the district-defined cohorts. CCMR applicability comes from campus configuration.</p>
+          <div id="readiness-fields" class="field-grid"></div>
+        </section>
+        <section class="form-step" data-step="climate" aria-labelledby="climate-heading" hidden>
+          <h2 id="climate-heading" tabindex="-1">Attendance / Climate</h2>
+          <p class="section-intro">Enter chronic absenteeism, the campus survey baseline and lost instructional time. The survey indicator and all targets are district-controlled. Attendance / ADA is reused from Demographics.</p>
+          <div id="climate-fields" class="field-grid"></div>
+        </section>
+        <section class="form-step" data-step="implementation" aria-labelledby="implementation-heading" hidden>
+          <h2 id="implementation-heading" tabindex="-1">Implementation</h2>
+          <p class="section-intro">Use the district-approved observation rubrics, monitored-classroom denominator, milestone set, and review period for these campus percentages.</p>
+          <div id="implementation-fields" class="field-grid"></div>
+        </section>
+        <section class="form-step" data-step="program" aria-labelledby="program-heading" hidden>
+          <h2 id="program-heading" tabindex="-1">Program Information</h2>
+          <p class="section-intro">Enter confirmed campus funding. Intervention, TEA identification, Board approval and submission information come from district configuration and appear read-only on Review. Do not enter student or personnel information.</p>
+          <div id="program-fields" class="field-grid"></div>
+        </section>
+        <section class="form-step" data-step="review" aria-labelledby="review-heading" hidden>
+          <h2 id="review-heading" tabindex="-1">Review campus baselines and district targets</h2>
+          <p class="section-intro">Check each entered baseline/current value beside its district target. Use Back to make changes. Targets cannot be edited in this form.</p>
+          <div class="review-campus">
+            <span class="field-help">Selected campus</span>
+            <p id="review-campus-name"></p>
+            <p class="field-help">Campus ID: <strong id="review-campus-id"></strong> · Supplied by district configuration</p>
+          </div>
+          <section aria-labelledby="district-campus-heading">
+            <h3 id="district-campus-heading">District-Controlled Campus Information</h3>
+            <p class="field-help">Read-only district configuration for the selected campus. Unconfirmed values are labeled District confirmation needed.</p>
+            <div class="table-scroll">
+              <table class="review-table">
+                <caption>District-controlled campus information</caption>
+                <thead><tr><th scope="col">Campus information</th><th scope="col">District-configured value</th></tr></thead>
+                <tbody id="review-district-campus"></tbody>
+              </table>
+            </div>
+          </section>
+          <p id="review-perception-context" class="field-help"></p>
+          <p class="field-help">District measurement definitions still awaiting confirmation appear with their affected metrics.</p>
+          <p class="review-legend"><strong>User-entered values</strong> appear in the middle column. <span class="fixed-label">District-controlled planning targets</span> appear in the right column. Not applicable values follow campus configuration; unresolved applicability is labeled District confirmation needed.</p>
+          <div class="table-scroll review-table-region" role="region" aria-label="Campus baseline and district target review" tabindex="0">
+            <table class="review-table">
+              <caption>Campus values and district-controlled targets</caption>
+              <thead><tr><th scope="col">Metric / Information</th><th scope="col">Campus Baseline<br><small>Entered by campus</small></th><th scope="col">District Target<br><small>Read-only configuration</small></th></tr></thead>
+              <tbody id="review-metrics"></tbody>
+            </table>
+          </div>
+          <p id="generation-status" class="notice review-note" role="status">Generate the Full Secondary CIP and Plan4Learning Copy/Paste Guide. Review the working draft and complete remaining district-controlled and external requirements before final entry.</p>
+          <button id="generate-button" type="button" class="button-primary generate-button" aria-describedby="generation-status">Generate CIP Content</button>
+          <p id="generation-error" class="field-error" role="alert" hidden></p>
+        </section>
+        <div class="form-actions">
+          <button id="back-button" class="button-secondary" type="button" disabled>Back</button>
+          <button id="next-button" class="button-primary" type="submit">Next</button>
+        </div>
+      </div>
+    </form>
+
+    <section id="cip-output" aria-labelledby="output-heading" hidden>
+      <div class="output-header">
+        <div>
+          <p id="output-school-year" class="eyebrow">2026–27 Secondary Campus Improvement Plan</p>
+          <h2 id="output-heading" tabindex="-1">Secondary Campus Improvement Plan</h2>
+          <p id="output-campus-name" class="intro"></p>
+        </div>
+        <div class="output-actions">
+          <button id="back-to-edit" type="button" class="button-secondary">Back to Edit</button>
+          <button id="print-button" type="button" class="button-primary">Print / Save as PDF</button>
+        </div>
+      </div>
+      <p id="draft-status" class="notice draft-status" role="status"></p>
+      <details id="district-confirmations" class="confirmation-details"><summary>District confirmation items for this campus</summary><ul id="district-confirmation-list"></ul></details>
+      <div class="output-switch" role="group" aria-label="CIP output views">
+        <button id="full-cip-button" type="button" class="button-secondary" aria-pressed="true" aria-controls="full-cip-view">Full Secondary CIP</button>
+        <button id="guide-button" type="button" class="button-secondary" aria-pressed="false" aria-controls="guide-view">Plan4Learning Copy/Paste Guide</button>
+      </div>
+      <p id="copy-status" class="field-help" role="status" aria-live="polite"></p>
+      <div id="full-cip-view" aria-label="Full working-draft CIP"></div>
+      <div id="guide-view" aria-label="Plan4Learning Copy/Paste Guide" hidden>
+        <p class="notice">Destinations follow the source CIP headings. Where exact field names are unverified, labels use the closest section-level destination; confirm the controls in your Plan4Learning instance. Each goal copy includes its campus goal, alignment, problem, root causes, objectives and all source action steps. Tables copy as plain text with tab-separated columns. Personnel and application-only requirements are completed directly in district systems.</p>
+        <div id="guide-sections"></div>
+      </div>
+    </section>
+  </main>
+  <footer class="container site-footer"><p>Beaumont ISD · Secondary campus planning · Full CIP and Plan4Learning Guide</p></footer>
+</body>
+</html>
