@@ -7,7 +7,7 @@
   const district = config.DISTRICT_CONFIG;
   // Generation is available only when the Secondary module and district setting agree.
   const GENERATION_READY = district.generation_ready === true && typeof window.BISD_CIP_GENERATOR?.build === "function";
-  const state = { campus_name: "", campus_id: null, districtCampus: null, optional: Object.create(null) };
+  const state = { campus_name: "", campus_id: null, districtCampus: null, optional: Object.create(null), localSources: Object.create(null) };
   const panels = Array.from(form.querySelectorAll(".form-step"));
   const stepLabels = {
     campus: "Campus Information", demographics: "Demographics",
@@ -47,19 +47,19 @@
   }
   function targetInfo(field) {
     const status = applicability(field);
-    if (status.kind === "na") return { text: "Not applicable", kind: "na", description: status.reason };
+    if (status.kind === "na") return { text: config.NA_GRADE_SPAN, kind: "na", description: status.reason };
     if (status.kind === "pending") return { text: district.pending_value, kind: "pending", description: status.reason };
     if (!field.targetKey) return { text: "N/A", kind: "na", description: "No numerical target for this descriptive / program value" };
     const target = district.targets[field.targetKey];
     const raw = target && (target.configKey ? district[target.configKey] : target.value);
-    if (configuredText(raw) === district.pending_value) return { text: district.pending_value, kind: "pending", description: "District target pending confirmation" };
+    if (configuredText(raw) === district.pending_value || String(raw).startsWith("VERIFY")) return { text: "VERIFY — District target confirmation required", kind: "pending", description: "Retained source benchmark: " + (target.source_value ?? "not supplied") + ". Requires district confirmation." };
     let text = String(raw);
     if (target.format === "percentage") text += "%";
     if (target.format === "percentage-plus") text += "%+";
     text += target.suffix || "";
     return { text, kind: "fixed", description: target.source_status === "existing"
       ? "Retained source measure; subject to BISD validation"
-      : "District-controlled planning benchmark; subject to BISD validation" };
+      : "CONFIRMED DISTRICT TARGET — Secondary reference target key" };
   }
   function targetDisplay(field) {
     const box = node("div", undefined, "field-target");
@@ -93,12 +93,12 @@
 
   function addField(field) {
     const container = document.getElementById(field.group + "-fields");
-    const step = panels.findIndex(panel => panel.dataset.step === field.group);
+    const step = field.group === "baseline" ? 0 : panels.findIndex(panel => panel.dataset.step === field.group);
     if (!container || step < 0 || field.enabled !== true) return;
     const wrapper = node("div", undefined, "field");
     const label = node("label", field.label);
     label.htmlFor = field.id;
-    const requiredLabel = node("span", "Required", "required-label");
+    const requiredLabel = node("span", field.required ? "Required" : "Optional override", "required-label");
     label.append(requiredLabel);
     const control = document.createElement("input");
     control.id = field.id;
@@ -125,9 +125,22 @@
       const unit = node("span", "%"); unit.setAttribute("aria-hidden", "true"); inputRegion.append(unit);
     }
     wrapper.append(inputRegion, help, definition, note, target, error);
+    let sourceControl, overrideControl;
+    if (field.publicBaseline) {
+      const sourceLabel = node("label", "Override source and underlying year");
+      sourceControl = document.createElement("input"); sourceControl.type = "text";
+      sourceControl.id = field.id + "-source"; sourceControl.maxLength = 300; sourceLabel.htmlFor = sourceControl.id;
+      sourceControl.addEventListener("input", () => { state.localSources[field.id] = sourceControl.value.trim(); save(controls.get(field.id)); if (control.hasAttribute("aria-invalid")) validate(controls.get(field.id)); });
+            overrideControl = document.createElement("input"); overrideControl.type = "checkbox";
+      overrideControl.id = field.id + "-override"; overrideControl.className = "public-override-toggle";
+      const overrideLabel = node("label", "Use a verified local override instead of the published value"); overrideLabel.htmlFor = overrideControl.id;
+      const overrideRegion = node("div", undefined, "public-override-choice"); overrideRegion.append(overrideControl, overrideLabel); wrapper.prepend(overrideRegion);
+      overrideControl.addEventListener("change", () => { syncApplicability(); save(controls.get(field.id)); });
+      wrapper.append(sourceLabel, sourceControl);
+    }
     container.append(wrapper);
     displayedFields.push(field);
-    controls.set(field.id, { control, definition: field, step, wrapper, inputRegion, requiredLabel, note, definitionNode: definition, target });
+    controls.set(field.id, { control, definition: field, step, wrapper, inputRegion, requiredLabel, note, definitionNode: definition, target, sourceControl, overrideControl });
   }
   config.CAMPUS_FIELDS.forEach(addField);
 
@@ -135,13 +148,16 @@
     displayedFields.forEach(field => {
       const entry = controls.get(field.id);
       const status = applicability(field);
-      const active = status.kind === "applicable";
+      const publicRecord = config.getPublishedBaseline(state.campus_id, field.id);
+      const active = status.kind === "applicable" && (!publicRecord || entry.overrideControl?.checked);
       entry.control.disabled = !active;
       entry.control.required = active && field.required;
       entry.inputRegion.hidden = !active;
       // Do not show an irrelevant CCMR question for middle-school campuses.
-      entry.wrapper.hidden = status.kind === "na";
-      entry.requiredLabel.textContent = active ? "Required" : "District configuration";
+      entry.wrapper.hidden = field.publicBaseline && status.kind !== "applicable";
+      if (entry.overrideControl) { entry.overrideControl.parentElement.hidden = !publicRecord; entry.overrideControl.disabled = status.kind !== "applicable"; }
+      if (entry.sourceControl) entry.sourceControl.disabled = !active;
+      entry.requiredLabel.textContent = active ? (field.required ? "Required" : "Optional override") : "District configuration";
       entry.note.hidden = active;
       entry.note.textContent = status.kind === "na" ? "Not applicable" : status.reason;
       const definition = definitionText(field);
@@ -162,6 +178,7 @@
     const raw = control.value.trim();
     if (control.validity.badInput) return "Enter a valid number.";
     if (!raw) return definition.required ? "This field is required." : "";
+    if (definition.publicBaseline && !/\b(?:19|20)\d{2}(?:[-–]\d{2,4})?\b/.test(entry.sourceControl?.value || "")) return "Provide the verified override source and underlying year.";
     if (definition.type === "campus") return district.campuses.some(campus => campus.campus_id === raw) ? "" : "Select a campus from the list.";
     if (definition.type === "percentage" || definition.type === "number") {
       const number = Number(raw);
@@ -197,18 +214,36 @@
           controls.get(field.id).control.removeAttribute("aria-invalid");
           document.getElementById(field.id + "-error").hidden = true;
         });
-        state.optional = Object.create(null);
+        state.optional = Object.create(null); state.localSources = Object.create(null);
+        controls.forEach(item => { if (item.sourceControl) item.sourceControl.value = ""; if (item.overrideControl) item.overrideControl.checked = false; });
       }
       state.districtCampus = campus;
       state.campus_name = campus ? campus.campus_name : "";
       state.campus_id = campus ? campus.campus_id : null;
       document.getElementById("campus-id-value").textContent = campus ? configuredText(campus.campus_id) : "Select a campus first";
       syncApplicability();
+      renderBaselinePanel();
+      const curriculumBody = document.getElementById("readiness-curriculum");
+      curriculumBody.replaceChildren();
+      if (campus) config.secondaryCurriculumRows(campus).forEach(values => {
+        const row = node("tr"); values.forEach(value => row.append(node("td", value))); curriculumBody.append(row);
+      });
+      const bands = campus ? config.gradeBands(campus) : [];
+      document.getElementById("readiness-context").textContent = !campus ? "Select a campus first" : "Grade span: " + campus.grade_span + ". " + (bands.includes("9-12") ? "High-school CCMR and graduation history is separate from targets; confirm the published indicator units, cohort years and any campus-specific pathway definitions." : bands.includes("6-8") ? "High-school-only CCMR and graduation measures: Not Applicable — campus grade span. Middle-school readiness cohorts require district verification." : "VERIFY — confirm the combined/alternative campus grade bands and applicable cohorts.");
       return;
     }
     if (entry.control.disabled) { delete state.optional[entry.control.id]; return; }
     const numeric = entry.definition.type === "percentage" || entry.definition.type === "number";
     state.optional[entry.control.id] = !raw || errorFor(entry) ? null : numeric ? Number(raw) : raw;
+    if (entry.sourceControl) state.localSources[entry.control.id] = entry.sourceControl.value.trim();
+    renderBaselinePanel();
+  }
+  function renderBaselinePanel() {
+    document.getElementById("campus-baseline-review").hidden = !state.districtCampus;
+    const body = document.getElementById("campus-published-baselines"); body.replaceChildren();
+    for (const values of config.publicBaselineRows(state.campus_id, state.optional, state.localSources)) {
+      const row = node("tr"); values.forEach(value => row.append(node("td", value))); body.append(row);
+    }
   }
   function captureInput(event) {
     const entry = controls.get(event.target.id);
@@ -218,8 +253,9 @@
   }
   function formatValue(field) {
     const status = applicability(field);
-    if (status.kind === "na") return "Not applicable";
-    if (status.kind === "pending") return district.pending_value;
+    if (field.publicBaseline) { const info = config.getBaselineReview(state.campus_id, field.id, state.optional, state.localSources); return info.text + " · " + info.sourceLabel; }
+    if (status.kind === "na") return config.NA_GRADE_SPAN;
+    if (status.kind === "pending") return "VERIFY — " + district.pending_value;
     const entered = state.optional[field.id];
     if (entered === null || entered === undefined || entered === "") return "Not provided";
     if (field.type === "percentage") return entered + "%";
@@ -381,7 +417,7 @@
   }
 
   // Clipboard access is user-initiated and local. No server receives the content.
-  async function copySection(text, button, fallback, title) {
+  async function copySection(text, button, fallback, title, statusElement = copyStatus) {
     try {
       let copied = false;
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -395,14 +431,14 @@
         copied = typeof document.execCommand === "function" && document.execCommand("copy");
       }
       if (!copied) {
-        copyStatus.textContent = "Automatic copy is unavailable. The section text is selected below; press Ctrl+C (Command+C on Mac) to copy it.";
+        statusElement.textContent = "Automatic copy is unavailable. The section text is selected below; press Ctrl+C (Command+C on Mac) to copy it.";
         return;
       }
       fallback.hidden = true;
       button.focus();
       button.textContent = "Copied";
       button.setAttribute("aria-label", "Copied " + title);
-      copyStatus.textContent = "Copied " + title + ".";
+      statusElement.textContent = "Copied " + title + ".";
       clearTimeout(copyTimers.get(button));
       copyTimers.set(button, setTimeout(() => {
         button.textContent = "Copy";
@@ -414,9 +450,11 @@
       fallback.value = text;
       fallback.focus();
       fallback.select();
-      copyStatus.textContent = "Select the section text below and press Ctrl+C (Command+C on Mac).";
+      statusElement.textContent = "Select the section text below and press Ctrl+C (Command+C on Mac).";
     }
   }
+
+  window.BISD_CIP_CLIPBOARD = Object.freeze({ copySection });
 
   function renderGuide(items) {
     const container = document.getElementById("guide-sections");
