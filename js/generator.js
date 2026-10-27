@@ -449,7 +449,24 @@
         if (info) {
           if (info.kind === "local" && !/\b(?:19|20)\d{2}\b/.test(state.localSources?.[field.id] || "")) throw new Error("Provide the override source/year: " + field.label);
           if (info.value !== undefined && field.type !== "text" && (!Number.isFinite(Number(info.value)) || Number(info.value) < (field.min ?? 0) || Number(info.value) > (field.type === "percentage" ? 100 : field.max ?? Infinity) || (field.step === 1 && !Number.isInteger(Number(info.value))))) throw new Error("Invalid campus baseline: " + field.label);
-          display = info.text + (info.kind === "public" || info.kind === "local" ? " [" + info.sourceLabel + "]" : "");
+          // Full provenance stays in the baseline register/review UI. Repeating it in
+          // every metric table and narrative unnecessarily expands the plan/PDF.
+          let planSource = info.sourceLabel;
+          if (info.kind === "public") {
+            const record = config.getPublishedBaseline(selected.campus_id, field.id);
+            const qualifications = [];
+            if (record.status === "PUBLIC_HISTORICAL") qualifications.push("historical");
+            if (record.note?.includes("not a grades 6-8-only result")) qualifications.push("Campus-wide EE-8 context; not a grades 6-8-only result.");
+            const cohort = String(record.source_variable || "").match(/\d-Year(?: Extended)?/);
+            if (field.id === "graduation_baseline_pct" && cohort) qualifications.push(cohort[0] + " graduation rate");
+            if (["rla_meets_baseline_pct", "math_meets_baseline_pct"].includes(field.id)) qualifications.push("TEA subject aggregate; verify local cohort comparability");
+            if (field.id === "attendance_ada_baseline_pct") qualifications.push("attendance rate, not funded ADA count");
+            planSource = (record.year ? record.year + " source year" : "VERIFY — source year not supplied") +
+              (qualifications.length ? " · " + qualifications.join(" · ") : "");
+          } else if (info.kind === "local") {
+            planSource = info.sourceLabel.split(" · Public reference:")[0];
+          }
+          display = info.text + (info.kind === "public" || info.kind === "local" ? " [" + planSource + "]" : "");
           if (/VERIFY/.test(info.sourceLabel) && info.kind !== "verify") notePending(field.id + ".source", field.label + ": " + info.sourceLabel, "source verification");
           if (info.kind === "verify") notePending(field.id, field.label + ": " + info.text, "baseline");
           questionValues[field.id] = display; values[field.id] = display; return;
@@ -560,7 +577,7 @@
       ["rla_meets_baseline_pct", "Reading/ELA Meets+"], ["math_meets_baseline_pct", "Mathematics/Algebra Meets+"],
       ["domain1_baseline_score", "Domain 1 / Student Achievement"], ["closing_gaps_baseline_score", "Closing the Gaps"],
       ["grade_level_readiness_baseline_pct", "grade-level readiness / on-track"], ["ccmr_baseline_pct", "CCMR"]
-    ], "In " + baselineYear);
+    ]);
     const surveyContext = para("District-selected stakeholder survey indicator: " + value("perception_indicator_name") + ".");
     const climateNarrative = narrative([
       ["attendance_ada_baseline_pct", "attendance / ADA"], ["perception_baseline_pct", "priority stakeholder survey favorability"],
